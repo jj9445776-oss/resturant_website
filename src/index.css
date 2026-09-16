@@ -1,0 +1,77 @@
+@import "tailwindcss";
+
+@layer base {
+  :root {
+    --font-display: 'Bebas Neue', 'Montserrat', sans-serif;
+    --font-script: 'Caveat', cursive;
+    --font-body: 'Plus Jakarta Sans', sans-serif;
+  }
+
+  body {
+    background-color: #0d0d0f;
+    color: #f3f3f6;
+    font-family: var(--font-body);
+    overflow-x: hidden;
+  }
+
+  .font-display {
+    font-family: var(--font-display);
+    letter-spacing: 0.02em;
+  }
+
+  .font-script {
+    font-family: var(--font-script);
+  }
+}
+
+/* Custom scrollbars */
+::-webkit-scrollbar {
+  width: 7px;
+  height: 7px;
+}
+::-webkit-scrollbar-track {
+  background: #111115;
+}
+::-webkit-scrollbar-thumb {
+  background: #343442;
+  border-radius: 9999px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: #f59e0b;
+}
+
+/* Texture backgrounds */
+.bg-charcoal-dark {
+  background-color: #0f0f12;
+}
+
+.bg-paper-light {
+  background-color: #f7f6f2;
+}
+
+.text-mustard {
+  color: #f59e0b;
+}
+
+.bg-mustard {
+  background-color: #f59e0b;
+}
+
+.border-mustard {
+  border-color: #f59e0b;
+}
+
+/* Circular Stamp rotation effect */
+@keyframes spin-slow {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.animate-spin-slow {
+  animation: spin-slow 25s linear infinite;
+}
+

@@ -1,0 +1,6 @@
+{
+  "name": "Burger Factory - Burgers Done Right",
+  "description": "Craft gourmet burgers made fresh to order with 100% Angus beef, hand-cut fries, and thick hand-spun shakes. Features interactive 3D animated burger experience.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
