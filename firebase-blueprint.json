@@ -29,9 +29,9 @@
       },
       "required": ["uid", "email", "role", "assignedAt"]
     },
-    "Product": {
-      "title": "Product",
-      "description": "Restaurant menu food or drink product",
+    "MenuItem": {
+      "title": "MenuItem",
+      "description": "Restaurant menu food or drink item",
       "type": "object",
       "properties": {
         "id": { "type": "string", "maxLength": 128 },
@@ -59,9 +59,9 @@
       },
       "required": ["id", "name", "slug", "category", "price", "isAvailable"]
     },
-    "Category": {
-      "title": "Category",
-      "description": "Menu category",
+    "MenuCategory": {
+      "title": "MenuCategory",
+      "description": "Food menu classification category",
       "type": "object",
       "properties": {
         "id": { "type": "string", "maxLength": 64 },
@@ -96,19 +96,58 @@
         "discount": { "type": "number" },
         "couponCode": { "type": "string", "maxLength": 32 },
         "total": { "type": "number" },
-        "paymentMethod": { "type": "string", "enum": ["jazzcash", "easypaisa", "bank_transfer", "cod"] },
+        "paymentMethod": { "type": "string", "enum": ["jazzcash", "easypaisa", "bank_transfer", "cod", "stripe", "card"] },
         "paymentStatus": { "type": "string", "enum": ["pending", "verified", "failed", "refunded"] },
         "orderStatus": { "type": "string", "enum": ["pending", "confirmed", "preparing", "ready", "out_for_delivery", "completed", "cancelled"] },
-        "notes": { "type": "string", "maxLength": 512 },
         "transactionId": { "type": "string", "maxLength": 128 },
+        "notes": { "type": "string", "maxLength": 500 },
         "createdAt": { "type": "string", "maxLength": 64 },
         "updatedAt": { "type": "string", "maxLength": 64 }
       },
-      "required": ["id", "orderNumber", "customerName", "customerPhone", "items", "total", "paymentMethod", "orderStatus", "createdAt"]
+      "required": ["id", "orderNumber", "customerName", "customerPhone", "deliveryType", "items", "subtotal", "total", "paymentMethod", "paymentStatus", "orderStatus", "createdAt"]
+    },
+    "OrderItem": {
+      "title": "OrderItem",
+      "description": "Individual line item belonging to an order",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "maxLength": 128 },
+        "orderId": { "type": "string", "maxLength": 128 },
+        "productId": { "type": "string", "maxLength": 128 },
+        "productName": { "type": "string", "maxLength": 160 },
+        "quantity": { "type": "number" },
+        "unitPrice": { "type": "number" },
+        "totalPrice": { "type": "number" },
+        "selectedVariation": { "type": "object" },
+        "selectedAddons": { "type": "array" },
+        "specialInstructions": { "type": "string", "maxLength": 280 }
+      },
+      "required": ["id", "orderId", "productId", "productName", "quantity", "unitPrice", "totalPrice"]
+    },
+    "Payment": {
+      "title": "Payment",
+      "description": "Server-verified payment transaction log",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "maxLength": 128 },
+        "orderId": { "type": "string", "maxLength": 128 },
+        "orderNumber": { "type": "string", "maxLength": 64 },
+        "customerId": { "type": "string", "maxLength": 128 },
+        "amount": { "type": "number" },
+        "currency": { "type": "string", "maxLength": 10 },
+        "method": { "type": "string", "enum": ["jazzcash", "easypaisa", "bank_transfer", "cod", "stripe", "card"] },
+        "status": { "type": "string", "enum": ["pending", "verified", "failed", "refunded"] },
+        "transactionId": { "type": "string", "maxLength": 128 },
+        "verifiedByServer": { "type": "boolean" },
+        "gatewayResponse": { "type": "object" },
+        "createdAt": { "type": "string", "maxLength": 64 },
+        "updatedAt": { "type": "string", "maxLength": 64 }
+      },
+      "required": ["id", "orderId", "amount", "currency", "method", "status", "createdAt"]
     },
     "Reservation": {
       "title": "Reservation",
-      "description": "Dine-in table reservation booking",
+      "description": "Dining table reservation",
       "type": "object",
       "properties": {
         "id": { "type": "string", "maxLength": 128 },
@@ -120,38 +159,17 @@
         "date": { "type": "string", "maxLength": 32 },
         "time": { "type": "string", "maxLength": 32 },
         "guests": { "type": "number" },
-        "seatingArea": { "type": "string", "maxLength": 64 },
-        "specialRequest": { "type": "string", "maxLength": 512 },
+        "seatingArea": { "type": "string", "maxLength": 128 },
+        "occasion": { "type": "string", "maxLength": 128 },
+        "specialRequests": { "type": "string", "maxLength": 500 },
         "status": { "type": "string", "enum": ["pending", "confirmed", "rejected", "completed", "cancelled"] },
-        "branchId": { "type": "string", "maxLength": 64 },
         "createdAt": { "type": "string", "maxLength": 64 }
       },
-      "required": ["id", "reservationNumber", "customerName", "customerPhone", "date", "time", "guests", "status", "createdAt"]
-    },
-    "CateringLead": {
-      "title": "CateringLead",
-      "description": "Event and corporate catering inquiry",
-      "type": "object",
-      "properties": {
-        "id": { "type": "string", "maxLength": 128 },
-        "name": { "type": "string", "maxLength": 128 },
-        "company": { "type": "string", "maxLength": 128 },
-        "phone": { "type": "string", "maxLength": 32 },
-        "email": { "type": "string", "maxLength": 256 },
-        "eventType": { "type": "string", "maxLength": 64 },
-        "eventDate": { "type": "string", "maxLength": 32 },
-        "guests": { "type": "number" },
-        "budgetRange": { "type": "string", "maxLength": 64 },
-        "foodRequirements": { "type": "string", "maxLength": 1000 },
-        "message": { "type": "string", "maxLength": 1000 },
-        "status": { "type": "string", "enum": ["new", "contacted", "quoted", "confirmed", "closed"] },
-        "createdAt": { "type": "string", "maxLength": 64 }
-      },
-      "required": ["id", "name", "phone", "eventType", "createdAt"]
+      "required": ["id", "customerName", "customerPhone", "date", "time", "guests", "status", "createdAt"]
     },
     "Review": {
       "title": "Review",
-      "description": "Customer feedback and rating",
+      "description": "Customer feedback and star rating",
       "type": "object",
       "properties": {
         "id": { "type": "string", "maxLength": 128 },
@@ -160,31 +178,14 @@
         "comment": { "type": "string", "maxLength": 1000 },
         "dishName": { "type": "string", "maxLength": 128 },
         "isApproved": { "type": "boolean" },
+        "city": { "type": "string", "maxLength": 64 },
         "createdAt": { "type": "string", "maxLength": 64 }
       },
       "required": ["id", "customerName", "rating", "comment", "isApproved", "createdAt"]
     },
-    "Branch": {
-      "title": "Branch",
-      "description": "Restaurant branch location",
-      "type": "object",
-      "properties": {
-        "id": { "type": "string", "maxLength": 64 },
-        "name": { "type": "string", "maxLength": 128 },
-        "city": { "type": "string", "maxLength": 64 },
-        "address": { "type": "string", "maxLength": 256 },
-        "phone": { "type": "string", "maxLength": 32 },
-        "openingHours": { "type": "string", "maxLength": 128 },
-        "mapsUrl": { "type": "string", "maxLength": 512 },
-        "deliveryAvailable": { "type": "boolean" },
-        "isActive": { "type": "boolean" },
-        "createdAt": { "type": "string", "maxLength": 64 }
-      },
-      "required": ["id", "name", "city", "address", "phone", "isActive"]
-    },
     "Coupon": {
       "title": "Coupon",
-      "description": "Discount promo code",
+      "description": "Discount promotion coupon",
       "type": "object",
       "properties": {
         "id": { "type": "string", "maxLength": 64 },
@@ -203,17 +204,17 @@
     },
     "RestaurantSettings": {
       "title": "RestaurantSettings",
-      "description": "System-wide restaurant configurations and payment/SMS/WhatsApp credentials",
+      "description": "Global restaurant operational configuration",
       "type": "object",
       "properties": {
         "id": { "type": "string", "maxLength": 64 },
         "restaurantName": { "type": "string", "maxLength": 128 },
         "tagline": { "type": "string", "maxLength": 256 },
         "phone": { "type": "string", "maxLength": 32 },
-        "email": { "type": "string", "maxLength": 256 },
+        "email": { "type": "string", "maxLength": 128 },
         "whatsappNumber": { "type": "string", "maxLength": 32 },
         "address": { "type": "string", "maxLength": 256 },
-        "currency": { "type": "string", "maxLength": 8 },
+        "currency": { "type": "string", "maxLength": 10 },
         "defaultTaxRate": { "type": "number" },
         "defaultDeliveryFee": { "type": "number" },
         "freeDeliveryThreshold": { "type": "number" },
@@ -225,71 +226,68 @@
         "updatedAt": { "type": "string", "maxLength": 64 }
       },
       "required": ["id", "restaurantName", "currency"]
-    },
-    "AuditLog": {
-      "title": "AuditLog",
-      "description": "Admin activity tracking log",
-      "type": "object",
-      "properties": {
-        "id": { "type": "string", "maxLength": 128 },
-        "adminEmail": { "type": "string", "maxLength": 256 },
-        "action": { "type": "string", "maxLength": 128 },
-        "entity": { "type": "string", "maxLength": 64 },
-        "entityId": { "type": "string", "maxLength": 128 },
-        "details": { "type": "string", "maxLength": 1000 },
-        "timestamp": { "type": "string", "maxLength": 64 }
-      },
-      "required": ["id", "adminEmail", "action", "entity", "timestamp"]
     }
   },
   "firestore": {
     "/users/{userId}": {
       "schema": "User",
-      "description": "User profiles"
+      "description": "Customer profiles and user account records"
     },
     "/admins/{adminUid}": {
       "schema": "Admin",
-      "description": "Whitelisted administrator accounts"
+      "description": "Administrative authority whitelist"
+    },
+    "/menuItems/{itemId}": {
+      "schema": "MenuItem",
+      "description": "Food menu items catalog"
     },
     "/products/{productId}": {
-      "schema": "Product",
-      "description": "Restaurant menu dishes, items, and beverages"
+      "schema": "MenuItem",
+      "description": "Alias path for food menu items"
+    },
+    "/menuCategories/{categoryId}": {
+      "schema": "MenuCategory",
+      "description": "Food categories classification"
     },
     "/categories/{categoryId}": {
-      "schema": "Category",
-      "description": "Menu categories"
+      "schema": "MenuCategory",
+      "description": "Alias path for food categories"
     },
     "/orders/{orderId}": {
       "schema": "Order",
-      "description": "Customer delivery and takeaway orders"
+      "description": "Customer orders collection"
+    },
+    "/orderItems/{itemId}": {
+      "schema": "OrderItem",
+      "description": "Order line items collection"
+    },
+    "/orders/{orderId}/orderItems/{itemId}": {
+      "schema": "OrderItem",
+      "description": "Subcollection for order items"
+    },
+    "/payments/{paymentId}": {
+      "schema": "Payment",
+      "description": "Payment transactions and verification records"
     },
     "/reservations/{reservationId}": {
       "schema": "Reservation",
-      "description": "Table reservation bookings"
-    },
-    "/catering_leads/{leadId}": {
-      "schema": "CateringLead",
-      "description": "Event and wedding catering inquiries"
+      "description": "Table booking reservations"
     },
     "/reviews/{reviewId}": {
       "schema": "Review",
-      "description": "Customer ratings and testimonials"
-    },
-    "/branches/{branchId}": {
-      "schema": "Branch",
-      "description": "Restaurant branch locations"
+      "description": "Customer feedback and reviews"
     },
     "/coupons/{couponId}": {
       "schema": "Coupon",
       "description": "Promotional discount codes"
     },
+    "/restaurantSettings/{settingId}": {
+      "schema": "RestaurantSettings",
+      "description": "Global restaurant settings configuration"
+    },
     "/settings/{settingId}": {
       "schema": "RestaurantSettings",
-      "description": "Global restaurant configurations"
-    },
-    "/audit_logs/{logId}": {
-      "schema": "AuditLog",
-      "description": "Administrator action history"
+      "description": "Alias path for restaurant settings"
     }
   }
 }

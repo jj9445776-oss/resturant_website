@@ -1,6 +1,15 @@
 import React, { createContext, useContext, useEffect, useState } from 'react';
-import { onAuthStateChanged, signInWithPopup, signOut, User } from 'firebase/auth';
-import { doc, getDoc, setDoc } from 'firebase/firestore';
+import {
+  onAuthStateChanged,
+  signInWithPopup,
+  signOut,
+  User,
+  signInWithEmailAndPassword,
+  createUserWithEmailAndPassword,
+  sendPasswordResetEmail,
+  updateProfile,
+} from 'firebase/auth';
+import { doc, getDoc, setDoc, updateDoc } from 'firebase/firestore';
 import { auth, db, googleProvider } from '../firebase';
 import { Role, UserProfile } from '../types';
 
@@ -11,6 +20,10 @@ interface AuthContextType {
   isAdmin: boolean;
   loading: boolean;
   loginWithGoogle: () => Promise<void>;
+  loginWithEmail: (email: string, pass: string) => Promise<void>;
+  registerWithEmail: (email: string, pass: string, displayName: string, phone?: string) => Promise<void>;
+  resetPassword: (email: string) => Promise<void>;
+  updateCustomerProfile: (data: Partial<UserProfile>) => Promise<void>;
   logout: () => Promise<void>;
   simulateRole: (role: Role) => void;
 }
@@ -87,6 +100,60 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   };
 
+  const loginWithEmail = async (email: string, pass: string) => {
+    try {
+      await signInWithEmailAndPassword(auth, email, pass);
+    } catch (error) {
+      console.error('Email sign-in error:', error);
+      throw error;
+    }
+  };
+
+  const registerWithEmail = async (email: string, pass: string, displayName: string, phone?: string) => {
+    try {
+      const res = await createUserWithEmailAndPassword(auth, email, pass);
+      if (res.user) {
+        await updateProfile(res.user, { displayName });
+        const userDocRef = doc(db, 'users', res.user.uid);
+        const isOwnerEmail = email.toLowerCase() === 'bilalit.rfc@gmail.com';
+        const profile: UserProfile = {
+          id: res.user.uid,
+          email,
+          displayName,
+          phone: phone || '',
+          role: isOwnerEmail ? 'super_admin' : 'customer',
+          createdAt: new Date().toISOString(),
+        };
+        await setDoc(userDocRef, profile);
+        setUserProfile(profile);
+      }
+    } catch (error) {
+      console.error('Registration error:', error);
+      throw error;
+    }
+  };
+
+  const resetPassword = async (email: string) => {
+    try {
+      await sendPasswordResetEmail(auth, email);
+    } catch (error) {
+      console.error('Password reset error:', error);
+      throw error;
+    }
+  };
+
+  const updateCustomerProfile = async (data: Partial<UserProfile>) => {
+    if (!currentUser) throw new Error('User not logged in');
+    try {
+      const userDocRef = doc(db, 'users', currentUser.uid);
+      await updateDoc(userDocRef, { ...data, updatedAt: new Date().toISOString() });
+      setUserProfile((prev) => (prev ? { ...prev, ...data } : null));
+    } catch (error) {
+      console.error('Profile update error:', error);
+      throw error;
+    }
+  };
+
   const logout = async () => {
     try {
       await signOut(auth);
@@ -121,6 +188,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         isAdmin,
         loading,
         loginWithGoogle,
+        loginWithEmail,
+        registerWithEmail,
+        resetPassword,
+        updateCustomerProfile,
         logout,
         simulateRole,
       }}

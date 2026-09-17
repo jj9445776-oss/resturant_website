@@ -230,6 +230,23 @@ export interface RestaurantSettings {
   updatedAt?: string;
 }
 
+export interface PaymentRecord {
+  id: string;
+  orderId: string;
+  orderNumber: string;
+  customerId?: string;
+  customerName?: string;
+  customerEmail?: string;
+  amount: number;
+  currency: string;
+  method: PaymentMethod;
+  status: PaymentStatus;
+  transactionId?: string;
+  verifiedByServer: boolean;
+  receiptNumber?: string;
+  createdAt: string;
+}
+
 export interface AuditLog {
   id: string;
   adminEmail: string;

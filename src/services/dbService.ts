@@ -25,6 +25,7 @@ import {
   RestaurantSettings,
   AuditLog,
   UserProfile,
+  PaymentRecord,
 } from '../types';
 import {
   INITIAL_PRODUCTS,
@@ -426,6 +427,56 @@ export async function logAuditEvent(adminEmail: string, action: string, entity: 
   }
 }
 
+export async function deleteCategory(categoryId: string): Promise<void> {
+  const path = `categories/${categoryId}`;
+  try {
+    await deleteDoc(doc(db, 'categories', categoryId));
+    try {
+      await deleteDoc(doc(db, 'menuCategories', categoryId));
+    } catch {}
+  } catch (error) {
+    handleFirestoreError(error, OperationType.DELETE, path);
+  }
+}
+
+export async function deleteCoupon(couponId: string): Promise<void> {
+  const path = `coupons/${couponId}`;
+  try {
+    await deleteDoc(doc(db, 'coupons', couponId));
+  } catch (error) {
+    handleFirestoreError(error, OperationType.DELETE, path);
+  }
+}
+
+// ================= PAYMENTS SERVICES =================
+export async function createPaymentRecord(payment: PaymentRecord): Promise<void> {
+  const path = `payments/${payment.id}`;
+  try {
+    await setDoc(doc(db, 'payments', payment.id), payment);
+  } catch (error) {
+    handleFirestoreError(error, OperationType.CREATE, path);
+  }
+}
+
+export function subscribePayments(onUpdate: (payments: PaymentRecord[]) => void): () => void {
+  const path = 'payments';
+  try {
+    return onSnapshot(
+      collection(db, path),
+      (snap) => {
+        const list = snap.docs.map((d) => d.data() as PaymentRecord);
+        list.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+        onUpdate(list);
+      },
+      (error) => {
+        console.warn('Payments snapshot notice:', error.message);
+      }
+    );
+  } catch {
+    return () => {};
+  }
+}
+
 // ================= REVIEWS =================
 export function subscribeReviews(onUpdate: (reviews: Review[]) => void): () => void {
   const path = 'reviews';
@@ -462,5 +513,14 @@ export async function toggleReviewStatus(reviewId: string, isApproved: boolean):
     await updateDoc(doc(db, 'reviews', reviewId), { isApproved });
   } catch (error) {
     handleFirestoreError(error, OperationType.UPDATE, path);
+  }
+}
+
+export async function deleteReview(reviewId: string): Promise<void> {
+  const path = `reviews/${reviewId}`;
+  try {
+    await deleteDoc(doc(db, 'reviews', reviewId));
+  } catch (error) {
+    handleFirestoreError(error, OperationType.DELETE, path);
   }
 }

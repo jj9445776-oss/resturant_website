@@ -29,6 +29,8 @@ import {
   Eye,
   Shield,
   FileText,
+  SlidersHorizontal,
+  Upload,
 } from 'lucide-react';
 import {
   Product,
@@ -49,8 +51,12 @@ import {
   updateOrderPayment,
   saveProduct,
   deleteProduct,
+  saveCategory,
+  deleteCategory,
   updateReservationStatus,
   saveCoupon,
+  deleteCoupon,
+  deleteReview,
   saveSettings,
   updateCateringLeadStatus,
   toggleReviewStatus,
@@ -86,6 +92,7 @@ type AdminTab =
   | 'whatsapp'
   | 'sms'
   | 'payments'
+  | 'settings'
   | 'audit';
 
 export const AdminView: React.FC<AdminViewProps> = ({
@@ -110,6 +117,8 @@ export const AdminView: React.FC<AdminViewProps> = ({
 
   // Editing modals / state
   const [editingProduct, setEditingProduct] = useState<Partial<Product> | null>(null);
+  const [editingCategory, setEditingCategory] = useState<Partial<Category> | null>(null);
+  const [isUploadingImage, setIsUploadingImage] = useState(false);
   const [editingCoupon, setEditingCoupon] = useState<Partial<Coupon> | null>(null);
   const [currentSettings, setCurrentSettings] = useState<RestaurantSettings>(settings);
   const [settingsSavedMsg, setSettingsSavedMsg] = useState(false);
@@ -140,6 +149,7 @@ export const AdminView: React.FC<AdminViewProps> = ({
     { id: 'whatsapp', label: 'WhatsApp Alerts', icon: MessageSquare },
     { id: 'sms', label: 'SMS Gateway', icon: Smartphone },
     { id: 'payments', label: 'Payment Accounts', icon: CreditCard },
+    { id: 'settings', label: 'Restaurant Settings', icon: SlidersHorizontal },
     { id: 'audit', label: 'Security & Audit', icon: History },
   ];
 
@@ -585,6 +595,77 @@ export const AdminView: React.FC<AdminViewProps> = ({
                     />
                   </div>
 
+                  {/* Food Image Upload & URL */}
+                  <div className="p-3 rounded-xl bg-[#0e0e16] border border-[#242436] space-y-2">
+                    <label className="block text-xs font-semibold text-amber-400">Food Image (Upload or URL)</label>
+                    <div className="flex flex-col sm:flex-row items-center gap-3">
+                      {editingProduct.image ? (
+                        <img
+                          src={editingProduct.image}
+                          alt="Dish Preview"
+                          className="w-16 h-16 rounded-xl object-cover border border-amber-500/40 bg-stone-900"
+                        />
+                      ) : (
+                        <div className="w-16 h-16 rounded-xl bg-stone-900 border border-stone-800 flex items-center justify-center text-stone-600 text-xs">
+                          No Img
+                        </div>
+                      )}
+                      <div className="flex-1 w-full space-y-2">
+                        <input
+                          type="text"
+                          placeholder="Image URL (e.g. https://...)"
+                          value={editingProduct.image || ''}
+                          onChange={(e) => setEditingProduct({ ...editingProduct, image: e.target.value })}
+                          className="w-full px-3 py-1.5 rounded bg-[#161622] border border-[#2b2b3d] text-white text-xs"
+                        />
+                        <div className="flex items-center gap-2">
+                          <label className="px-3 py-1.5 rounded-lg bg-stone-800 hover:bg-stone-700 text-amber-400 border border-amber-500/30 text-xs font-semibold cursor-pointer transition flex items-center gap-1.5">
+                            <Upload size={13} />
+                            <span>{isUploadingImage ? 'Uploading Image...' : 'Upload Food Photo'}</span>
+                            <input
+                              type="file"
+                              accept="image/*"
+                              className="hidden"
+                              disabled={isUploadingImage}
+                              onChange={async (e) => {
+                                const file = e.target.files?.[0];
+                                if (!file) return;
+                                setIsUploadingImage(true);
+                                const reader = new FileReader();
+                                reader.onload = async (ev) => {
+                                  const base64 = ev.target?.result as string;
+                                  try {
+                                    const res = await fetch('/api/upload/image', {
+                                      method: 'POST',
+                                      headers: { 'Content-Type': 'application/json' },
+                                      body: JSON.stringify({
+                                        imageData: base64,
+                                        fileName: file.name,
+                                        contentType: file.type,
+                                      }),
+                                    });
+                                    const data = await res.json();
+                                    if (data.url) {
+                                      setEditingProduct((prev) => (prev ? { ...prev, image: data.url } : null));
+                                    } else {
+                                      setEditingProduct((prev) => (prev ? { ...prev, image: base64 } : null));
+                                    }
+                                  } catch {
+                                    setEditingProduct((prev) => (prev ? { ...prev, image: base64 } : null));
+                                  } finally {
+                                    setIsUploadingImage(false);
+                                  }
+                                };
+                                reader.readAsDataURL(file);
+                              }}
+                            />
+                          </label>
+                          <span className="text-[11px] text-stone-500">Auto-saved to cloud storage</span>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
                   <div className="flex items-center gap-4 text-xs">
                     <label className="flex items-center gap-2 cursor-pointer text-white">
                       <input
@@ -630,7 +711,24 @@ export const AdminView: React.FC<AdminViewProps> = ({
                     >
                       <img src={p.image} alt={p.name} className="w-12 h-12 rounded-lg object-cover bg-[#20202e]" />
                       <div className="min-w-0 flex-1">
-                        <span className="font-semibold text-xs text-white block truncate">{p.name}</span>
+                        <div className="flex items-center gap-1.5">
+                          <span className="font-semibold text-xs text-white block truncate">{p.name}</span>
+                          <button
+                            onClick={async () => {
+                              const updated = { ...p, isAvailable: !p.isAvailable };
+                              await saveProduct(updated);
+                              await logAuditEvent(currentUser?.email || 'admin', 'TOGGLE', 'product', p.id, `InStock: ${!p.isAvailable}`);
+                            }}
+                            className={`px-1.5 py-0.5 rounded text-[9px] font-bold uppercase transition cursor-pointer ${
+                              p.isAvailable
+                                ? 'bg-emerald-950/90 text-emerald-400 border border-emerald-700/50'
+                                : 'bg-red-950/90 text-red-400 border border-red-700/50'
+                            }`}
+                            title="Click to toggle availability"
+                          >
+                            {p.isAvailable ? 'In Stock' : 'Out of Stock'}
+                          </button>
+                        </div>
                         <span className="text-[10px] text-[#d4af37] font-urdu block">{p.nameUrdu}</span>
                         <span className="text-xs text-[#8f8e9e]">PKR {p.price.toLocaleString()}</span>
                       </div>
@@ -663,16 +761,170 @@ export const AdminView: React.FC<AdminViewProps> = ({
           {/* ========================================================================= */}
           {activeTab === 'categories' && (
             <div className="p-6 rounded-3xl bg-[#13131c] border border-[#262638] space-y-4 animate-in fade-in">
-              <h3 className="font-heading text-lg font-bold text-[#f5efe6] pb-3 border-b border-[#212130]">
-                Food Categories ({categories.length})
-              </h3>
+              <div className="flex items-center justify-between pb-3 border-b border-[#212130]">
+                <div>
+                  <h3 className="font-heading text-lg font-bold text-[#f5efe6]">
+                    Food Categories ({categories.length})
+                  </h3>
+                  <p className="text-xs text-stone-400 mt-0.5">
+                    Organize your menu into royal categories with custom ordering and bilingual titles.
+                  </p>
+                </div>
+                <button
+                  onClick={() =>
+                    setEditingCategory({
+                      id: `cat-${Date.now()}`,
+                      name: '',
+                      nameUrdu: '',
+                      slug: '',
+                      description: '',
+                      displayOrder: categories.length + 1,
+                    })
+                  }
+                  className="px-4 py-2 rounded-xl bg-[#f59e0b] hover:bg-amber-400 text-[#0b0b0d] font-bold text-xs flex items-center gap-1.5 cursor-pointer transition shadow"
+                  id="admin-create-category-btn"
+                >
+                  <Plus size={14} />
+                  <span>Create Category</span>
+                </button>
+              </div>
+
+              {/* Editing Category Form */}
+              {editingCategory && (
+                <div className="p-4 rounded-2xl bg-[#0c0c14] border border-amber-500/40 space-y-3 animate-in fade-in">
+                  <div className="flex items-center justify-between">
+                    <h4 className="text-xs font-bold text-amber-400 uppercase tracking-wider">
+                      {editingCategory.name ? `Edit: ${editingCategory.name}` : 'New Category'}
+                    </h4>
+                    <button
+                      onClick={() => setEditingCategory(null)}
+                      className="text-xs text-stone-400 hover:text-white cursor-pointer"
+                    >
+                      Cancel
+                    </button>
+                  </div>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 text-xs">
+                    <div>
+                      <label className="block text-stone-400 mb-1">Category Name (English) *</label>
+                      <input
+                        type="text"
+                        value={editingCategory.name || ''}
+                        onChange={(e) => {
+                          const val = e.target.value;
+                          setEditingCategory({
+                            ...editingCategory,
+                            name: val,
+                            slug: editingCategory.slug || val.toLowerCase().replace(/[^a-z0-9]+/g, '-'),
+                          });
+                        }}
+                        className="w-full px-3 py-1.5 rounded bg-[#161622] border border-stone-800 text-white"
+                        placeholder="e.g. Gourmet Burgers"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-stone-400 mb-1">Name in Urdu (اردو نام) *</label>
+                      <input
+                        type="text"
+                        value={editingCategory.nameUrdu || ''}
+                        onChange={(e) => setEditingCategory({ ...editingCategory, nameUrdu: e.target.value })}
+                        className="w-full px-3 py-1.5 rounded bg-[#161622] border border-stone-800 text-white font-urdu"
+                        placeholder="گورمے برگرز"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-stone-400 mb-1">Slug (URL identifier)</label>
+                      <input
+                        type="text"
+                        value={editingCategory.slug || ''}
+                        onChange={(e) => setEditingCategory({ ...editingCategory, slug: e.target.value.toLowerCase() })}
+                        className="w-full px-3 py-1.5 rounded bg-[#161622] border border-stone-800 text-white font-mono text-xs"
+                        placeholder="gourmet-burgers"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-stone-400 mb-1">Display Sort Order</label>
+                      <input
+                        type="number"
+                        value={editingCategory.displayOrder || 1}
+                        onChange={(e) => setEditingCategory({ ...editingCategory, displayOrder: Number(e.target.value) })}
+                        className="w-full px-3 py-1.5 rounded bg-[#161622] border border-stone-800 text-white"
+                      />
+                    </div>
+                  </div>
+                  <div>
+                    <label className="block text-stone-400 mb-1 text-xs">Description</label>
+                    <input
+                      type="text"
+                      value={editingCategory.description || ''}
+                      onChange={(e) => setEditingCategory({ ...editingCategory, description: e.target.value })}
+                      className="w-full px-3 py-1.5 rounded bg-[#161622] border border-stone-800 text-white text-xs"
+                      placeholder="Brief summary of category dishes"
+                    />
+                  </div>
+                  <div className="flex justify-end gap-2">
+                    <button
+                      onClick={() => setEditingCategory(null)}
+                      className="px-3 py-1.5 rounded bg-stone-800 text-stone-300 text-xs font-semibold cursor-pointer"
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      onClick={async () => {
+                        if (!editingCategory.name || !editingCategory.id) return;
+                        await saveCategory(editingCategory as Category);
+                        await logAuditEvent(
+                          currentUser?.email || 'admin',
+                          'SAVE',
+                          'category',
+                          editingCategory.id,
+                          `Category ${editingCategory.name} saved`
+                        );
+                        setEditingCategory(null);
+                      }}
+                      className="px-4 py-1.5 rounded bg-amber-500 hover:bg-amber-400 text-stone-950 font-bold text-xs cursor-pointer shadow"
+                    >
+                      Save Category
+                    </button>
+                  </div>
+                </div>
+              )}
+
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
                 {categories.map((c) => (
-                  <div key={c.id} className="p-4 rounded-xl bg-[#161622] border border-[#242436]">
-                    <span className="font-urdu text-sm text-[#d4af37] block">{c.nameUrdu}</span>
-                    <h4 className="font-heading font-bold text-sm text-white">{c.name}</h4>
-                    <p className="text-[11px] text-[#868595] mt-1">{c.description}</p>
-                    <span className="text-[10px] font-mono text-[#6d6c7b] mt-2 block">slug: {c.slug}</span>
+                  <div key={c.id} className="p-4 rounded-xl bg-[#161622] border border-[#242436] flex flex-col justify-between">
+                    <div>
+                      <div className="flex items-center justify-between">
+                        <span className="font-urdu text-sm text-[#d4af37] block">{c.nameUrdu}</span>
+                        <span className="text-[10px] font-mono text-stone-500 bg-stone-900 px-1.5 py-0.5 rounded">
+                          Order: {c.displayOrder}
+                        </span>
+                      </div>
+                      <h4 className="font-heading font-bold text-sm text-white mt-0.5">{c.name}</h4>
+                      <p className="text-[11px] text-[#868595] mt-1">{c.description}</p>
+                      <span className="text-[10px] font-mono text-[#6d6c7b] mt-1 block">slug: {c.slug}</span>
+                    </div>
+
+                    <div className="flex items-center justify-end gap-2 mt-3 pt-2 border-t border-[#20202e]">
+                      <button
+                        onClick={() => setEditingCategory(c)}
+                        className="p-1.5 rounded bg-[#222232] hover:bg-[#d4af37] text-[#d4af37] hover:text-[#0b0b0d] text-xs cursor-pointer transition"
+                        title="Edit Category"
+                      >
+                        <Edit2 size={13} />
+                      </button>
+                      <button
+                        onClick={async () => {
+                          if (confirm(`Are you sure you want to delete category "${c.name}"?`)) {
+                            await deleteCategory(c.id);
+                            await logAuditEvent(currentUser?.email || 'admin', 'DELETE', 'category', c.id, `Category ${c.name} deleted`);
+                          }
+                        }}
+                        className="p-1.5 rounded bg-red-950/60 hover:bg-red-600 text-red-400 hover:text-white text-xs cursor-pointer transition"
+                        title="Delete Category"
+                      >
+                        <Trash2 size={13} />
+                      </button>
+                    </div>
                   </div>
                 ))}
               </div>
@@ -838,7 +1090,7 @@ export const AdminView: React.FC<AdminViewProps> = ({
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 {coupons.map((c) => (
-                  <div key={c.id} className="p-4 rounded-xl bg-[#161622] border border-[#242436] flex justify-between">
+                  <div key={c.id} className="p-4 rounded-xl bg-[#161622] border border-[#242436] flex justify-between items-start">
                     <div>
                       <span className="font-mono text-base font-bold text-[#d4af37]">{c.code}</span>
                       <p className="text-xs text-white">
@@ -848,9 +1100,23 @@ export const AdminView: React.FC<AdminViewProps> = ({
                         Min Order: PKR {c.minOrder.toLocaleString()}
                       </span>
                     </div>
-                    <span className="px-2 py-0.5 rounded text-[10px] font-bold uppercase bg-[#142618] text-[#4ade80] h-fit">
-                      {c.isActive ? 'Active' : 'Inactive'}
-                    </span>
+                    <div className="flex items-center gap-2">
+                      <span className="px-2 py-0.5 rounded text-[10px] font-bold uppercase bg-[#142618] text-[#4ade80] h-fit">
+                        {c.isActive ? 'Active' : 'Inactive'}
+                      </span>
+                      <button
+                        onClick={async () => {
+                          if (confirm(`Delete coupon "${c.code}"?`)) {
+                            await deleteCoupon(c.id);
+                            await logAuditEvent(currentUser?.email || 'admin', 'DELETE', 'coupon', c.id, `Coupon ${c.code} deleted`);
+                          }
+                        }}
+                        className="p-1 rounded bg-red-950/60 hover:bg-red-600 text-red-400 hover:text-white cursor-pointer transition text-xs"
+                        title="Delete Coupon"
+                      >
+                        <Trash2 size={12} />
+                      </button>
+                    </div>
                   </div>
                 ))}
               </div>
@@ -907,17 +1173,31 @@ export const AdminView: React.FC<AdminViewProps> = ({
                       <p className="text-xs text-[#cfcbd9] italic mt-1">"{rev.comment}"</p>
                     </div>
 
-                    <button
-                      onClick={async () => {
-                        await toggleReviewStatus(rev.id, !rev.isApproved);
-                        await logAuditEvent(currentUser?.email || 'admin', 'MODERATE', 'review', rev.id, `Approved: ${!rev.isApproved}`);
-                      }}
-                      className={`px-3 py-1 rounded text-xs font-semibold cursor-pointer ${
-                        rev.isApproved ? 'bg-[#183520] text-[#4ade80]' : 'bg-[#2b1818] text-[#f87171]'
-                      }`}
-                    >
-                      {rev.isApproved ? 'Approved' : 'Pending'}
-                    </button>
+                    <div className="flex items-center gap-2">
+                      <button
+                        onClick={async () => {
+                          await toggleReviewStatus(rev.id, !rev.isApproved);
+                          await logAuditEvent(currentUser?.email || 'admin', 'MODERATE', 'review', rev.id, `Approved: ${!rev.isApproved}`);
+                        }}
+                        className={`px-3 py-1 rounded text-xs font-semibold cursor-pointer ${
+                          rev.isApproved ? 'bg-[#183520] text-[#4ade80]' : 'bg-[#2b1818] text-[#f87171]'
+                        }`}
+                      >
+                        {rev.isApproved ? 'Approved' : 'Pending'}
+                      </button>
+                      <button
+                        onClick={async () => {
+                          if (confirm(`Delete review from "${rev.customerName}"?`)) {
+                            await deleteReview(rev.id);
+                            await logAuditEvent(currentUser?.email || 'admin', 'DELETE', 'review', rev.id, `Review from ${rev.customerName} deleted`);
+                          }
+                        }}
+                        className="p-1.5 rounded bg-red-950/60 hover:bg-red-600 text-red-400 hover:text-white cursor-pointer transition text-xs"
+                        title="Delete Review"
+                      >
+                        <Trash2 size={13} />
+                      </button>
+                    </div>
                   </div>
                 ))}
               </div>
@@ -1273,7 +1553,159 @@ export const AdminView: React.FC<AdminViewProps> = ({
           )}
 
           {/* ========================================================================= */}
-          {/* 14. SECURITY & AUDIT LOGS */}
+          {/* 14. RESTAURANT SETTINGS */}
+          {/* ========================================================================= */}
+          {activeTab === 'settings' && (
+            <div className="p-6 rounded-3xl bg-[#13131c] border border-[#262638] space-y-6 animate-in fade-in">
+              <div className="pb-3 border-b border-[#212130]">
+                <h3 className="font-heading text-lg font-bold text-[#f5efe6]">
+                  Restaurant Configuration &amp; Operations
+                </h3>
+                <p className="text-xs text-[#8f8e9e] mt-1">
+                  Manage restaurant brand info, operating policies, delivery thresholds, and tax rules.
+                </p>
+              </div>
+
+              <div className="space-y-4 text-xs">
+                {/* Brand & Contact */}
+                <div className="p-4 rounded-2xl bg-[#161622] border border-[#242436] space-y-3">
+                  <span className="font-bold text-sm text-amber-400 block">Brand &amp; Contact Details</span>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+                    <div>
+                      <label className="block text-[#9d9ba9] mb-1">Restaurant Name</label>
+                      <input
+                        type="text"
+                        value={currentSettings.restaurantName || ''}
+                        onChange={(e) => setCurrentSettings({ ...currentSettings, restaurantName: e.target.value })}
+                        className="w-full px-3 py-1.5 rounded bg-[#101018] border border-[#2b2b3d] text-white"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-[#9d9ba9] mb-1">Tagline</label>
+                      <input
+                        type="text"
+                        value={currentSettings.tagline || ''}
+                        onChange={(e) => setCurrentSettings({ ...currentSettings, tagline: e.target.value })}
+                        className="w-full px-3 py-1.5 rounded bg-[#101018] border border-[#2b2b3d] text-white"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-[#9d9ba9] mb-1">Primary Hotline</label>
+                      <input
+                        type="text"
+                        value={currentSettings.primaryPhone || ''}
+                        onChange={(e) => setCurrentSettings({ ...currentSettings, primaryPhone: e.target.value })}
+                        className="w-full px-3 py-1.5 rounded bg-[#101018] border border-[#2b2b3d] text-white"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-[#9d9ba9] mb-1">Support Email</label>
+                      <input
+                        type="email"
+                        value={currentSettings.supportEmail || ''}
+                        onChange={(e) => setCurrentSettings({ ...currentSettings, supportEmail: e.target.value })}
+                        className="w-full px-3 py-1.5 rounded bg-[#101018] border border-[#2b2b3d] text-white"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-[#9d9ba9] mb-1">Currency Code</label>
+                      <input
+                        type="text"
+                        value={currentSettings.currency || 'PKR'}
+                        onChange={(e) => setCurrentSettings({ ...currentSettings, currency: e.target.value })}
+                        className="w-full px-3 py-1.5 rounded bg-[#101018] border border-[#2b2b3d] text-white font-mono"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-[#9d9ba9] mb-1">Currency Symbol</label>
+                      <input
+                        type="text"
+                        value={currentSettings.currencySymbol || 'Rs.'}
+                        onChange={(e) => setCurrentSettings({ ...currentSettings, currencySymbol: e.target.value })}
+                        className="w-full px-3 py-1.5 rounded bg-[#101018] border border-[#2b2b3d] text-white"
+                      />
+                    </div>
+                  </div>
+                </div>
+
+                {/* Delivery & Ordering Rules */}
+                <div className="p-4 rounded-2xl bg-[#161622] border border-[#242436] space-y-3">
+                  <span className="font-bold text-sm text-amber-400 block">Delivery, Taxes &amp; Minimums</span>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+                    <div>
+                      <label className="block text-[#9d9ba9] mb-1">Delivery Fee (PKR)</label>
+                      <input
+                        type="number"
+                        value={currentSettings.deliveryFee || 0}
+                        onChange={(e) => setCurrentSettings({ ...currentSettings, deliveryFee: Number(e.target.value) })}
+                        className="w-full px-3 py-1.5 rounded bg-[#101018] border border-[#2b2b3d] text-white"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-[#9d9ba9] mb-1">Free Delivery Above (PKR)</label>
+                      <input
+                        type="number"
+                        value={currentSettings.freeDeliveryOver || 0}
+                        onChange={(e) => setCurrentSettings({ ...currentSettings, freeDeliveryOver: Number(e.target.value) })}
+                        className="w-full px-3 py-1.5 rounded bg-[#101018] border border-[#2b2b3d] text-white"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-[#9d9ba9] mb-1">Sales Tax Rate (%)</label>
+                      <input
+                        type="number"
+                        step="0.1"
+                        value={currentSettings.taxRatePercent || 0}
+                        onChange={(e) => setCurrentSettings({ ...currentSettings, taxRatePercent: Number(e.target.value) })}
+                        className="w-full px-3 py-1.5 rounded bg-[#101018] border border-[#2b2b3d] text-white"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-[#9d9ba9] mb-1">Min Order Amount (PKR)</label>
+                      <input
+                        type="number"
+                        value={currentSettings.minOrderAmount || 0}
+                        onChange={(e) => setCurrentSettings({ ...currentSettings, minOrderAmount: Number(e.target.value) })}
+                        className="w-full px-3 py-1.5 rounded bg-[#101018] border border-[#2b2b3d] text-white"
+                      />
+                    </div>
+                  </div>
+
+                  <div className="pt-2 flex items-center gap-4">
+                    <label className="flex items-center gap-2 cursor-pointer text-white">
+                      <input
+                        type="checkbox"
+                        checked={currentSettings.isOpenForDelivery ?? true}
+                        onChange={(e) => setCurrentSettings({ ...currentSettings, isOpenForDelivery: e.target.checked })}
+                      />
+                      <span>Accepting Online Delivery Orders</span>
+                    </label>
+                    <label className="flex items-center gap-2 cursor-pointer text-white">
+                      <input
+                        type="checkbox"
+                        checked={currentSettings.isOpenForTakeaway ?? true}
+                        onChange={(e) => setCurrentSettings({ ...currentSettings, isOpenForTakeaway: e.target.checked })}
+                      />
+                      <span>Accepting Takeaway / Pickup</span>
+                    </label>
+                  </div>
+                </div>
+              </div>
+
+              <div className="flex items-center gap-3">
+                <button
+                  onClick={handleSaveSettings}
+                  className="px-5 py-2.5 rounded-xl bg-[#d4af37] hover:bg-amber-400 text-[#0b0b0d] font-bold text-xs cursor-pointer shadow transition"
+                >
+                  Save Restaurant Settings
+                </button>
+                {settingsSavedMsg && <span className="text-xs text-[#4ade80]">Settings updated successfully!</span>}
+              </div>
+            </div>
+          )}
+
+          {/* ========================================================================= */}
+          {/* 15. SECURITY & AUDIT LOGS */}
           {/* ========================================================================= */}
           {activeTab === 'audit' && (
             <div className="p-6 rounded-3xl bg-[#13131c] border border-[#262638] space-y-4 animate-in fade-in">

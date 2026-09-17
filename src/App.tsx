@@ -8,6 +8,7 @@ import { CartDrawer } from './components/CartDrawer';
 import { ProductDetailModal } from './components/ProductDetailModal';
 import { OrderSuccessModal } from './components/OrderSuccessModal';
 import { HostingerDocsModal } from './views/HostingerDocsModal';
+import { AuthModal } from './components/AuthModal';
 
 // Views
 import { HomeView } from './views/HomeView';
@@ -60,6 +61,7 @@ function AppContent() {
   const [placedOrder, setPlacedOrder] = useState<Order | null>(null);
   const [trackingOrderNumber, setTrackingOrderNumber] = useState<string>('');
   const [isHostingerDocsOpen, setIsHostingerDocsOpen] = useState(false);
+  const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
 
   // Firestore Real-Time State (with rich fallback seed data)
   const [products, setProducts] = useState<Product[]>(INITIAL_PRODUCTS);
@@ -129,6 +131,7 @@ function AppContent() {
         currentView={currentView}
         setCurrentView={setCurrentView}
         onOpenHostingerDocs={() => setIsHostingerDocsOpen(true)}
+        onOpenAuthModal={() => setIsAuthModalOpen(true)}
       />
 
       {/* Main Content Body */}
@@ -175,6 +178,7 @@ function AppContent() {
             reservations={reservations}
             onTrackOrder={handleTrackOrder}
             onNavigateToMenu={() => setCurrentView('menu')}
+            onOpenAuthModal={() => setIsAuthModalOpen(true)}
           />
         )}
 
@@ -225,6 +229,12 @@ function AppContent() {
       {isHostingerDocsOpen && (
         <HostingerDocsModal onClose={() => setIsHostingerDocsOpen(false)} />
       )}
+
+      {/* Authentication Modal */}
+      <AuthModal
+        isOpen={isAuthModalOpen}
+        onClose={() => setIsAuthModalOpen(false)}
+      />
     </div>
   );
 }
